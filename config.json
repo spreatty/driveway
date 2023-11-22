@@ -1,0 +1,11 @@
+{
+  "bots": {
+    "gate": "AA:AA:AA:AA:AA:AA",
+    "garage": "00:00:00:00:00:00"
+  },
+  "server": {
+    "address": ":8080",
+    "useTLS": false,
+    "authToken": "token"
+  }
+}

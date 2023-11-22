@@ -1,0 +1,84 @@
+body {
+    margin: 0;
+    background: #000;
+}
+#cover {
+    background: #000;
+    color: #eee;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 30vh Arial;
+    display: none;
+}
+#controls {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    width: 25%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+#controls > div {
+    width: 100%;
+    height: 50%;
+    opacity: 0.5;
+    background-size: 8vw;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+#controls > div.inactive {
+    opacity: 0.2;
+}
+#controls > div.unavailable {
+    opacity: 0;
+}
+#gateBtn {
+    background-image: url('/static/gate.png');
+}
+#garageBtn {
+    background-image: url('/static/garage.png');
+}
+#restartBtn {
+    background-image: url('/static/restart.png');
+    background-size: contain;
+    width: 8vw;
+    height: 8vw;
+    position: fixed;
+    top: 5vh;
+    right: 2vw;
+    opacity: 0.5;
+}
+video {
+    width: 100%;
+}
+
+@media (orientation: portrait) {
+    #restart {
+        display: none;
+    }
+    #cover {
+        font-size: 10vh;
+    }
+    #controls {
+        position: unset;
+        display: flex;
+        width: 100%;
+        height: 20vh;
+        flex-direction: row;
+        justify-content: space-around;
+    }
+    #controls > div {
+        width: 10vh;
+        height: 10vh;
+        background-size: contain;
+    }
+}
