@@ -2,7 +2,8 @@
   <head>
     <title>Driveway</title>
     <meta name="theme-color" content="#3b3b3b" />
-    <link href="/static/hud.css" rel="stylesheet" />
+    <link href="/static/gate.css" rel="stylesheet" />
+    <link href="/manifest.json" rel="manifest"/>
     <script src="/static/adapter.js"></script>
   </head>
   
@@ -13,12 +14,7 @@
         <video id="gate-video" autoplay muted playsinline poster="/static/empty.png"></video>
         <div id="gate-state" class="bot-state inactive"></div>
       </div>
-      <div class="video-frame" id="garage-frame">
-        <div class="poster"><img src="/static/garage.svg"/></div>
-        <video id="garage-video" autoplay muted playsinline poster="/static/empty.png"></video>
-        <div id="garage-state" class="bot-state inactive"></div>
-      </div>
     </div>
-    <script src="/static/hud.js"></script>
+    <script src="/static/gate.js"></script>
   </body>
 </html>

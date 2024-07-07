@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	go startBLE()
+	startBLE()
 	go startHTTP()
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)

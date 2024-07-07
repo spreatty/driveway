@@ -44,17 +44,17 @@ var (
 	ActionGetInfo = []byte{0x57, 0x02, 0x0}
 )
 
+const pingInterval = time.Minute + time.Second*30
+
 type Bot struct {
 	Address    ble.Address
 	device     *ble.Device
 	service    *ble.DeviceService
 	writeChar  *ble.DeviceCharacteristic
 	notifyChar *ble.DeviceCharacteristic
-	notifyChan chan byte
-	ready      bool
 	userCount  int
 	mu         sync.Mutex
-	closeTimer *time.Timer
+	pingTicker *time.Ticker
 }
 
 func makeServiceFilter(serviceRawUUID string) []ble.UUID {
@@ -62,47 +62,45 @@ func makeServiceFilter(serviceRawUUID string) []ble.UUID {
 	return []ble.UUID{serviceUUID}
 }
 
-func (bot *Bot) Press() byte {
+func (bot *Bot) Press() (int, error) {
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
-	log.Println("Pressing", bot.Address.String())
+	log.Println("Pressing", bot.Address)
+	bot.pingTicker.Reset(pingInterval)
 	return bot.act(ActionPress)
 }
 
-func (bot *Bot) GetInfo() byte {
-	log.Println("Getting info is not supported yet", bot.Address.String())
-	return StatusError
-}
-
-func (bot *Bot) act(action []byte) byte {
-	if !bot.ready {
-		log.Println("Bot is not ready", bot.Address.String())
-		return StatusWriteError
-	}
-	_, err := bot.writeChar.Write(action)
+func (bot *Bot) act(action []byte) (int, error) {
+	n, err := bot.writeChar.Write(action)
 	if err != nil {
-		log.Println("Failed writing characteristic", bot.Address.String(), err.Error())
-		return StatusWriteError
+		log.Println("Failed writing characteristic", bot.Address, err)
+		return n, err
 	}
-	return <-bot.notifyChan
+	log.Println("Writing done. Code:", n, bot.Address, err)
+	return n, nil
 }
 
 func (bot *Bot) Open(opts *BotOpenOptions) error {
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
 
-	if bot.closeTimer != nil {
-		bot.closeTimer.Stop()
+	if bot.userCount >= 1 {
+		bot.userCount++
+		log.Println("Bot already opened. Users:", bot.userCount, bot.Address)
+		return nil
 	}
 
-	bot.userCount++
-	if bot.userCount > 1 {
-		log.Println("New bot user. Count:", bot.userCount, bot.Address.String())
-		return nil
-	}
-	if bot.ready {
-		log.Println("Closing canceled. Count:", bot.userCount, bot.Address.String())
-		return nil
+	if bot.writeChar != nil {
+		log.Println("Checking if bot still connected", bot.Address)
+		_, err := bot.act(ActionGetInfo)
+		if err == nil {
+			bot.userCount = 1
+			bot.keepAlive()
+			log.Println("Bot still connected. Users:", bot.userCount, bot.Address)
+			return nil
+		}
+		log.Println("Bot terminated connection, reconnecting", bot.Address)
+		bot.device.Disconnect()
 	}
 
 	if opts == nil {
@@ -126,57 +124,42 @@ func (bot *Bot) Open(opts *BotOpenOptions) error {
 		return err
 	}
 
-	bot.notifyChan = make(chan byte, 1)
-	err = bot.notifyChar.EnableNotifications(bot.notification)
-	if err != nil {
-		log.Println("Failed enabling notifications", bot.Address, err.Error())
-		bot.device.Disconnect()
-		return err
-	}
-
-	bot.ready = true
-	log.Println("Bot ready", bot.Address)
+	bot.userCount = 1
+	bot.keepAlive()
+	log.Println("Bot opened. Users:", bot.userCount, bot.Address)
+	log.Println("Getting info", bot.Address)
+	bot.act(ActionGetInfo)
 	return nil
 }
 
-func (bot *Bot) notification(buf []byte) {
-	log.Println("Notification", buf[0], bot.Address.String())
-	bot.notifyChan <- buf[0]
+func (bot *Bot) keepAlive() {
+	if bot.pingTicker != nil {
+		bot.pingTicker.Reset(pingInterval)
+		return
+	}
+	bot.pingTicker = time.NewTicker(pingInterval)
+	go func() {
+		for range bot.pingTicker.C {
+			bot.mu.Lock()
+			log.Println("Getting info", bot.Address)
+			bot.act(ActionGetInfo)
+			bot.mu.Unlock()
+		}
+	}()
 }
 
-func (bot *Bot) ScheduleClosing() {
+func (bot *Bot) Abandon() {
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
 
 	bot.userCount--
+	log.Println("Bot abandoned. Users:", bot.userCount, bot.Address)
 	if bot.userCount > 0 {
-		log.Println("Bot user left. Count:", bot.userCount, bot.Address.String())
 		return
 	}
 
-	bot.closeTimer = time.NewTimer(15 * time.Second)
-	go func() {
-		<-bot.closeTimer.C
-		bot.close()
-	}()
-	log.Println("Scheduled closing", bot.Address.String())
-}
-
-func (bot *Bot) close() {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	if bot.userCount > 0 {
-		log.Println("Closing interrupted", bot.Address.String())
-		return
-	}
-	bot.ready = false
-	close(bot.notifyChan)
-	bot.device.Disconnect()
-	bot.notifyChar = nil
-	bot.writeChar = nil
-	bot.service = nil
-	bot.device = nil
-	log.Println("Bot closed", bot.Address.String())
+	bot.pingTicker.Stop()
+	log.Println("Bot stop keep-alive", bot.Address)
 }
 
 func (bot *Bot) connect(tries int) error {

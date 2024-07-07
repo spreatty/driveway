@@ -6,26 +6,20 @@ const inactivityTimeoutMillis = 3000;
 const PING = 'ping';
 const GATE_CONNECT = 'gateconnect';
 const GATE_ERROR = 'gateerror';
-const GARAGE_CONNECT = 'garageconnect';
-const GARAGE_ERROR = 'garageerror';
 const GATE = 'gate:';
-const GARAGE = 'garage:';
 
 const params = new URLSearchParams(location.search);
 const token = params.get('t');
-const wsUrl = `ws://${location.host}/${token}/ws`;
+const wsUrl = `ws://${location.host}/${token}/mono`;
 const webrtcUrl = `${location.protocol}//${location.hostname}:8031/${token}`;
 
 const gateVideo = document.getElementById('gate-video');
-const garageVideo = document.getElementById('garage-video');
 const gateBtn = document.getElementById('gate-frame');
-const garageBtn = document.getElementById('garage-frame');
 const gateState = document.getElementById('gate-state');
-const garageState = document.getElementById('garage-state');
 
 const events = new EventTarget();
 var allStopped = false, focusLost = false;
-var gateReady = false, garageReady = false;
+var gateReady = false;
 var pingTimeout, blurTimeout, restartTimeout;
 var peerCon;
 var ws;
@@ -35,21 +29,8 @@ console.log = (...args) => {
     _log.apply(null, [new Date().toISOString().slice(11, -1)].concat(args))
 };
 
-
-//if(window.AADriveway)
-//    window.AADriveway.disableWifi();
-start();
-
-function start() {
-    connectWebSocket();
-    connectWebRTC();
-}
-
-function restart() {
-    console.log('Restarting');
-    allStopped = false;
-    start();
-}
+connectWebSocket();
+connectWebRTC();
 
 function connectWebSocket() {
     console.log(`Connecting to ${wsUrl}`);
@@ -69,16 +50,10 @@ function connectWebSocket() {
             events.dispatchEvent(new CustomEvent('ping'));
         } else if(data == GATE_CONNECT) {
             events.dispatchEvent(new CustomEvent('gateconnect'));
-        } else if(data == GARAGE_CONNECT) {
-            events.dispatchEvent(new CustomEvent('garageconnect'));
         } else if(data.startsWith(GATE_ERROR)) {
             events.dispatchEvent(new CustomEvent('gateerror'));
-        } else if(data.startsWith(GARAGE_ERROR)) {
-            events.dispatchEvent(new CustomEvent('garageerror'));
         } else if(data.startsWith(GATE)) {
             events.dispatchEvent(new CustomEvent('botgate', { detail: { state: data.slice(GATE.length) } }));
-        } else if(data.startsWith(GARAGE)) {
-            events.dispatchEvent(new CustomEvent('botgarage', { detail: { state: data.slice(GARAGE.length) } }));
         }
     };
 }
@@ -96,6 +71,8 @@ function startTimeout() {
 
 events.addEventListener('wsopen', () => {
     console.log('WebSocket connected');
+    if(window.AADriveway)
+        window.AADriveway.disableWifi();
     startTimeout();
 });
 
@@ -109,13 +86,18 @@ function stopAll() {
     clearTimeout(pingTimeout);
     clearTimeout(blurTimeout);
     gateVideo.pause();
-    garageVideo.pause();
     gateState.classList.add('inactive');
-    garageState.classList.add('inactive');
     if(peerCon) {
         peerCon.close();
     }
     ws.close();
+}
+
+function restart() {
+    console.log('Restarting');
+    allStopped = false;
+    connectWebSocket();
+    connectWebRTC();
 }
 
 function onlostconnection() {
@@ -147,10 +129,7 @@ events.addEventListener('webrtcnegotiate', () => {
 });
 
 events.addEventListener('webrtctrack', ({ detail }) => {
-    setTimeout(() => {
-        gateVideo.srcObject = new MediaStream([ detail.track ]);
-        garageVideo.srcObject = new MediaStream([ detail.track ]);
-    }, 1000);
+    gateVideo.srcObject = new MediaStream([ detail.track ]);
 });
 
 events.addEventListener('webrtcsdp', ({ detail }) => {
@@ -181,15 +160,6 @@ events.addEventListener('gateerror', () => {
     console.log('Failed connecting gate');
     gateState.classList.add('unavailable');
 });
-events.addEventListener('garageconnect', () => {
-    console.log('Garage connected');
-    garageReady = true;
-    garageState.classList.remove('inactive');
-});
-events.addEventListener('garageerror', () => {
-    console.log('Failed connecting garage');
-    garageState.classList.add('unavailable');
-});
 
 const reactEvent = window.AADriveway ? 'ontouchstart' : 'ontouched' in gateBtn ? 'ontouched' : 'onclick';
 gateBtn[reactEvent] = () => {
@@ -199,13 +169,6 @@ gateBtn[reactEvent] = () => {
     gateState.classList.add('inactive');
     ws.send('gate');
 };
-garageBtn[reactEvent] = () => {
-    if(!garageReady)
-        return;
-    console.log("Press garage");
-    garageState.classList.add('inactive');
-    ws.send('garage');
-};
 
 events.addEventListener('botgate', ({ detail }) => {
     console.log("Gate " + detail.state);
@@ -213,27 +176,21 @@ events.addEventListener('botgate', ({ detail }) => {
         gateState.classList.remove('inactive');
     }, botActionMillis);
 });
-events.addEventListener('botgarage', ({ detail }) => {
-    console.log("Garage " + detail.state);
-    setTimeout(() => {
-        garageState.classList.remove('inactive');
-    }, botActionMillis);
-});
 
 window.onblur = () => {
     console.log('Focus lost');
     focusLost = true;
-    trySend('blur');
+    ws.send('blur');
     clearTimeout(restartTimeout);
     blurTimeout = setTimeout(() => {
         console.log('Inactivity detected');
-        trySend('inactive');
+        ws.send('inactive');
         stopAll();
     }, inactivityTimeoutMillis);
 };
 window.onfocus = () => {
     console.log('Focus gained');
-    trySend('focus');
+    ws.send('focus');
     if(!focusLost) {
         return;
     }
@@ -245,11 +202,3 @@ window.onfocus = () => {
         clearTimeout(blurTimeout);
     }
 };
-
-function trySend(data) {
-    try {
-        ws.send(data);
-    } catch(e) {
-        console.log('Did not send', data);
-    }
-}

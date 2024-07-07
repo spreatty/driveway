@@ -10,8 +10,8 @@ var adapter = ble.DefaultAdapter
 var addrMap = loadAddresses()
 
 func loadAddresses() map[string]ble.Address {
-	macs := [2]string{Config.Bots.Gate, Config.Bots.Garage}
-	addrMap := make(map[string]ble.Address, 2)
+	macs := []string{Config.Bots.Gate, Config.Bots.Garage}
+	addrMap := make(map[string]ble.Address)
 	for _, macStr := range macs {
 		mac, err := ble.ParseMAC(macStr)
 		if err != nil {
@@ -27,14 +27,6 @@ func startBLE() {
 	if err != nil {
 		log.Fatalln("BLE error", err.Error())
 	}
-
-	adapter.SetConnectHandler(func(addr ble.Address, connected bool) {
-		state := "connected"
-		if !connected {
-			state = "disconnected"
-		}
-		log.Println("Device", addr, state)
-	})
 
 	preapreBLECache()
 }

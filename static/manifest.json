@@ -1,0 +1,11 @@
+{
+    "name": "Driveway",
+    "short_name": "Driveway",
+    "start_url": "http://185.155.91.153:8030/gate?t=7345dfj978235hf7f987bcvhf89342fy7689",
+    "display": "standalone",
+    "icons": [{
+        "src": "/static/gate512.png",
+        "sizes": "512x512",
+        "type": "image/png"
+    }]
+}
